@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>No Roblox?</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://d3js.org/topojson.v3.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            overscroll-behavior: none;
+        }
+        .country {
+            stroke: #6b7280; /* gray-500 */
+            stroke-width: 0.5px;
+            transition: fill 0.3s ease;
+        }
+        .country:hover {
+            stroke: #111827; /* gray-900 */
+            stroke-width: 1.5px;
+        }
+        .tooltip {
+            position: absolute;
+            text-align: center;
+            padding: 8px 12px;
+            font-size: 0.875rem;
+            background: #1f2937; /* gray-800 */
+            color: #f9fafb; /* gray-50 */
+            border-radius: 8px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        }
+        /* Custom Toggle Switch */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 28px;
+        }
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 28px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 20px;
+            width: 20px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .slider {
+            background-color: #4f46e5; /* indigo-600 */
+        }
+        input:focus + .slider {
+            box-shadow: 0 0 1px #4f46e5;
+        }
+        input:checked + .slider:before {
+            transform: translateX(22px);
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800 antialiased">
+
+    <div class="container mx-auto p-4 md:p-8">
+        <header class="text-center mb-6">
+            <h1 class="text-3xl md:text-4xl font-bold text-gray-900">World Population Dashboard</h1>
+            <p class="text-gray-600 mt-1">An interactive map showing population statistics.</p>
+        </header>
+
+        <!-- Stats Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            <div class="bg-white p-5 rounded-xl shadow-md">
+                <h2 class="text-sm font-medium text-gray-500">People with roblox</h2>
+                <p id="safe-population" class="text-2xl font-semibold text-green-600 mt-1">0</p>
+            </div>
+            <div class="bg-white p-5 rounded-xl shadow-md">
+                <h2 class="text-sm font-medium text-gray-500">People without roblox</h2>
+                <p id="red-population" class="text-2xl font-semibold text-red-600 mt-1">0</p>
+            </div>
+            <div class="bg-white p-5 rounded-xl shadow-md">
+                <h2 class="text-sm font-medium text-gray-500">How much percent people have no roblox?</h2>
+                <p id="red-percentage" class="text-2xl font-semibold text-yellow-600 mt-1">0%</p>
+            </div>
+            <div class="bg-white p-5 rounded-xl shadow-md">
+                <h2 class="text-sm font-medium text-gray-500">Total World Population</h2>
+                <p id="total-population" class="text-2xl font-semibold text-indigo-600 mt-1">0</p>
+            </div>
+        </div>
+
+        <!-- Controls -->
+        <div class="bg-white p-4 rounded-xl shadow-md mb-6 flex items-center justify-center space-x-4">
+            <span class="text-sm font-medium text-gray-700">Include China & North Korea</span>
+            <label class="switch">
+                <input type="checkbox" id="population-toggle" checked>
+                <span class="slider"></span>
+            </label>
+        </div>
+
+        <!-- Map Container -->
+        <div class="bg-white p-2 sm:p-4 rounded-xl shadow-lg">
+            <div id="map-container" class="w-full h-[60vh] overflow-hidden"></div>
+        </div>
+        <div id="tooltip" class="tooltip"></div>
+    </div>
+
+    <script type="module">
+        //
+        // --- EDIT THIS LIST ---
+        // Add the names of the countries you want to highlight in red.
+        // Make sure the names match the 'name' property in the countryData below.
+        //
+        const redCountries = [
+            "China",
+            "Turkey",
+            "Oman",
+            "Qatar",
+            "Jordan"
+            "North Korea"
+            "Bahrain"
+        ];
+
+        // --- Country Population Data ---
+        // Data from World Bank (approximate, for demonstration)
+        const countryData = {
+            "Afghanistan": 41128771, "Angola": 35588987, "Albania": 2777689, "United Arab Emirates": 9441129,
+            "Argentina": 46234830, "Armenia": 2780469, "Antarctica": 1000, "Australia": 26011190,
+            "Austria": 9043070, "Azerbaijan": 10139177, "Burundi": 12889576, "Belgium": 11631136,
+            "Benin": 13352864, "Burkina Faso": 22673762, "Bangladesh": 171186372, "Bulgaria": 6519789,
+            "The Bahamas": 407906, "Bosnia and Herz.": 3233526, "Bahrain": 1472203, "Belarus": 9255524, "Belize": 400031,
+            "Bolivia": 12224110, "Brazil": 215313498, "Brunei": 445373, "Bhutan": 777482, "Botswana": 2630296,
+            "Central African Rep.": 5579144, "Canada": 38929902, "Switzerland": 8703429, "Chile": 19493184,
+            "China": 1425887337, "Ivory Coast": 28160542, "Cameroon": 27914536, "Dem. Rep. Congo": 99010212,
+            "Congo": 5970424, "Colombia": 51874024, "Costa Rica": 5180829, "Cuba": 11212191,
+            "Northern Cyprus": 382230, "Cyprus": 1251488, "Czechia": 10516707, "Germany": 83756700,
+            "Djibouti": 1120849, "Denmark": 5856733, "Dominican Rep.": 11228821, "Algeria": 44177969,
+            "Ecuador": 18001000, "Egypt": 110990103, "Eritrea": 3684032, "Spain": 47784797, "Estonia": 1331824,
+            "Ethiopia": 123379924, "Finland": 5548360, "Fiji": 924610, "Falkland Is.": 3760, "France": 65426179,
+            "Gabon": 2388992, "United Kingdom": 67326569, "Georgia": 3714000, "Ghana": 33475870,
+            "Guinea": 13859341, "Gambia": 2705992, "Guinea-Bissau": 2105566, "Eq. Guinea": 1674908,
+            "Greece": 10432481, "Greenland": 56653, "Guatemala": 17357889, "Guyana": 808726,
+            "Honduras": 10432860, "Croatia": 3899000, "Haiti": 11447569, "Hungary": 9730000,
+            "Indonesia": 275501339, "India": 1417173173, "Ireland": 5123536, "Iran": 88550570,
+            "Iraq": 44496122, "Iceland": 376248, "Israel": 9449000, "Italy": 59131000, "Jamaica": 2827695,
+            "Jordan": 11285869, "Japan": 125124989, "Kazakhstan": 19196465, "Kenya": 53005614,
+            "Kyrgyzstan": 6969183, "Cambodia": 16767842, "South Korea": 51830139, "Kosovo": 1798188,
+            "Kuwait": 4268873, "Laos": 7529475, "Lebanon": 5489739, "Liberia": 5302681, "Libya": 6812341,
+            "Sri Lanka": 22181000, "Lesotho": 2305825, "Lithuania": 2720500, "Luxembourg": 645397,
+            "Latvia": 1848837, "Morocco": 37457971, "Moldova": 2617820, "Madagascar": 29611714,
+            "Mexico": 127504125, "Macedonia": 2065085, "Mali": 22593590, "Myanmar": 54179306,
+            "Montenegro": 620736, "Mongolia": 3398366, "Mozambique": 32969518, "Mauritania": 4736139,
+            "Malawi": 20405317, "Malaysia": 33938221, "Namibia": 2567012, "New Caledonia": 289950,
+            "Niger": 26207977, "Nigeria": 218541212, "Nicaragua": 6948392, "Netherlands": 17700000,
+            "Norway": 5434319, "Nepal": 30547580, "New Zealand": 5122600, "Oman": 4576298,
+            "Pakistan": 235824862, "Panama": 4408581, "Peru": 34049588, "Philippines": 115559009,
+            "Papua New Guinea": 10142619, "Poland": 37950000, "Puerto Rico": 3221789, "North Korea": 26069416,
+            "Portugal": 10196709, "Paraguay": 6780744, "Palestine": 5250072, "Qatar": 2695122,
+            "Romania": 19053815, "Russia": 144444359, "Rwanda": 13776698, "W. Sahara": 567421,
+            "Saudi Arabia": 36408820, "Sudan": 46874204, "S. Sudan": 10913164, "Senegal": 17316449,
+            "Solomon Is.": 724273, "Sierra Leone": 8605718, "El Salvador": 6314167, "Somaliland": 4500000,
+            "Somalia": 17597511, "Serbia": 7149077, "Suriname": 618040, "Slovakia": 5459642,
+            "Slovenia": 2108977, "Sweden": 10521556, "Swaziland": 1201670, "Syria": 22125249,
+            "Chad": 17723315, "Togo": 8848699, "Thailand": 71697030, "Tajikistan": 9952787,
+            "Turkmenistan": 6430770, "Timor-Leste": 1341296, "Trinidad and Tobago": 1531044,
+            "Tunisia": 12356117, "Turkey": 85279553, "Taiwan": 23894394, "Tanzania": 65497748,
+            "Uganda": 47249585, "Ukraine": 43790000, "Uruguay": 3426140, "United States": 333287557,
+            "Uzbekistan": 35648100, "Venezuela": 28301696, "Vietnam": 98186856, "Vanuatu": 326740,
+            "Yemen": 33696614, "South Africa": 59893885, "Zambia": 20017675, "Zimbabwe": 16320537
+        };
+
+        // --- D3 Map Drawing ---
+        const width = document.getElementById('map-container').clientWidth;
+        const height = document.getElementById('map-container').clientHeight;
+        const tooltip = d3.select("#tooltip");
+
+        const svg = d3.select("#map-container").append("svg")
+            .attr("width", "100%")
+            .attr("height", "100%")
+            .attr("viewBox", `0 0 ${width} ${height}`)
+            .style("cursor", "grab");
+
+        const g = svg.append("g");
+
+        const projection = d3.geoMercator()
+            .scale(width / (2 * Math.PI))
+            .translate([width / 2, height / 1.5]);
+
+        const path = d3.geoPath().projection(projection);
+
+        // Zoom functionality
+        const zoom = d3.zoom()
+            .scaleExtent([1, 8])
+            .on("zoom", (event) => {
+                g.attr("transform", event.transform);
+            });
+        svg.call(zoom);
+
+        // --- Main Application Logic ---
+        function updateMapAndStats() {
+            const excludeChinaNK = !document.getElementById('population-toggle').checked;
+
+            let totalWorldPopulation = 0;
+            let redPopulation = 0;
+
+            // Calculate totals
+            for (const countryName in countryData) {
+                if (excludeChinaNK && (countryName === "China" || countryName === "North Korea")) {
+                    continue;
+                }
+                totalWorldPopulation += countryData[countryName];
+            }
+
+            redCountries.forEach(countryName => {
+                if (countryData[countryName]) {
+                    redPopulation += countryData[countryName];
+                }
+            });
+
+            const safePopulation = totalWorldPopulation - redPopulation;
+            const redPercentage = totalWorldPopulation > 0 ? (redPopulation / totalWorldPopulation) * 100 : 0;
+
+            // Update DOM
+            document.getElementById('total-population').textContent = totalWorldPopulation.toLocaleString();
+            document.getElementById('safe-population').textContent = safePopulation.toLocaleString();
+            document.getElementById('red-population').textContent = redPopulation.toLocaleString();
+            document.getElementById('red-percentage').textContent = `${redPercentage.toFixed(2)}%`;
+
+            // Update map colors
+            g.selectAll(".country")
+                .attr("fill", d => {
+                    const countryName = d.properties.name;
+                    return redCountries.includes(countryName) ? "#ef4444" : "#d1d5db"; // red-500 or gray-300
+                });
+        }
+
+        // --- Initial Load ---
+        d3.json("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json").then(data => {
+            const countries = topojson.feature(data, data.objects.countries);
+            g.selectAll("path")
+                .data(countries.features)
+                .enter().append("path")
+                .attr("d", path)
+                .attr("class", "country")
+                .attr("data-name", d => d.properties.name)
+                .on("mouseover", function(event, d) {
+                    const countryName = d.properties.name;
+                    const population = countryData[countryName] ? countryData[countryName].toLocaleString() : "N/A";
+                    tooltip.style("opacity", 1)
+                           .html(`<strong>${countryName}</strong><br>Pop: ${population}`);
+                })
+                .on("mousemove", function(event) {
+                    tooltip.style("left", (event.pageX + 15) + "px")
+                           .style("top", (event.pageY - 28) + "px");
+                })
+                .on("mouseout", function() {
+                    tooltip.style("opacity", 0);
+                });
+            
+            // Initial calculation and map coloring
+            updateMapAndStats();
+        }).catch(error => {
+            console.error("Error loading map data:", error);
+            document.getElementById('map-container').innerHTML = `<div class="text-red-500">Failed to load map data. Please check the console.</div>`;
+        });
+
+        // Event Listener for the toggle switch
+        document.getElementById('population-toggle').addEventListener('change', updateMapAndStats);
+        
+        // Handle window resizing
+        window.addEventListener('resize', () => {
+            const newWidth = document.getElementById('map-container').clientWidth;
+            const newHeight = document.getElementById('map-container').clientHeight;
+            svg.attr("viewBox", `0 0 ${newWidth} ${newHeight}`);
+        });
+
+    </script>
+</body>
+</html>
